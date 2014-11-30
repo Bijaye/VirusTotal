@@ -1,0 +1,29 @@
+VirusTotal.[py/exe] --report -f <FILE> OR -d <DIRECTORY> AND -k <API-KEY>
+VirusTotal.[py/exe] --report --md5list <FILE> OR --md5 <SUM> AND -k <API-KEY>
+VirusTotal.[py/exe] --send -f <FILE> AND -k <API-KEY>
+VirusTotal.[py/exe] --send -d <DIRECTORY> AND --terminal[DEFAULT] OR --txt AND -k <API-KEY>
+
+
+Get reports from VirusTotal from a single MD5, list of MD5s, single file or
+all files within a directory. Send files or all files with in a directory to
+VirusTotal for scanning. Uses VirusTotal Public API v2.0
+
+Options:
+  --version          show program's version number and exit
+  -h, --help         show this help message and exit
+  --report           MODE: Get report from already scanned file or checksum
+  --send             MODE: Send file or entire directory to VirusTotal for
+                     scanning
+  --terminal         OUTPUT: to Terminal [default]
+  --txt              OUTPUT: to Textfile
+  -f FILE            file to get report of or send
+  -d DIRECTORY       directory to get report of or send
+  --md5list=MD5LIST  file with list of checksums
+  --md5=MD5          a md5 checksum
+  -k KEY, --key=KEY  your own apikey to access VirusTotal Public API. Leave
+                     out to use default/public key
+
+
+NOTE: If "-k" is not used the offical public key will be used and it is limited!!
+Use your own public API key for best usage. Read more here: https://www.virustotal.com/en/documentation/public-api/v2/
+
