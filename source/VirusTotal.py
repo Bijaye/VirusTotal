@@ -19,15 +19,18 @@ def main():
 
     usage1 = "\n%prog --report -f <FILE> OR -d <DIRECTORY> AND -k <API-KEY>\n"
     usage2 =   "%prog --report --md5list <FILE> OR --md5 <SUM> AND -k <API-KEY>\n"
-    usage3 =   "%prog --send -f <FILE> AND -k <API-KEY>\n"
-    usage4 =   "%prog --send -d <DIRECTORY> AND --terminal[DEFAULT] OR --txt AND -k <API-KEY>\n"
+    usage3 =   "%prog --report --url <URL> OR --urllist <FILE> AND -k <API-KEY>\n"
+    usage4 =   "%prog --send -f <FILE> AND -k <API-KEY>\n"
+    usage5 =   "%prog --send -d <DIRECTORY> AND --terminal OR --textfile AND -k <API-KEY>\n"
+    usage6 =   "%prog --send --url <URL> AND -k <API-KEY>\n"
+
 
     description = ( "Get reports from VirusTotal from a single MD5, list of MD5s, single file or all files within a directory.\n"
                     "Send files or all files with in a directory to VirusTotal for scanning.\n"
                     "Uses VirusTotal Public API v2.0"
                    )
 
-    parser = OptionParser(usage1+usage2+usage3+usage4, version="%prog 1.0",description=description)
+    parser = OptionParser(usage1+usage2+usage3+usage4+usage5+usage6, version="%prog 1.1",description=description)
 
 
     parser.add_option("--report", action="store_const",dest="mode", const="report", help="MODE: Get report from already scanned file or checksum")
@@ -40,8 +43,10 @@ def main():
     parser.add_option("-d",dest="directory", help="directory to get report of or send")
 
     parser.add_option("--md5list",dest="md5list", help="file with list of checksums")
+    parser.add_option("--urllist",dest="urllist", help="file with list of URLs")
 
     parser.add_option("--md5",dest="md5", help="a md5 checksum")
+    parser.add_option("--url",dest="url", help="a url")
 
     parser.add_option("-k","--key", dest="key", help="your own apikey to access VirusTotal Public API. Leave out to use default/public key")
 
@@ -54,7 +59,9 @@ def main():
     f                   = options.file
     directory           = options.directory
     md5list             = options.md5list
+    urllist             = options.urllist
     md5                 = options.md5
+    url                 = options.url
     apikey              = options.key
 
     # If no api-key is inputed the public key will be used
@@ -75,18 +82,26 @@ def main():
         # GET REPORT OF A MD5 SUM
         elif md5:
             GetScanReportMD5(md5)
+        # GET REPORT OF A URL
+        elif url:
+            GetScanReportURL(url)
+        # GET REPORT OF A LIST OF URLs
+        elif urllist:
+            GetScanReportURLFileList(urllist)
     # SEND MODE
     elif mode == "send":
         # SEND A FILE
         if f:
             ScanFile(f)
+        # SEND A URL
+        elif url:
+            ScanURL(url)
         # SEND ENTIRE DIRECTORY
         else:
             if output == "terminal":
                 ScanFilesOutput2terminal(directory)
             elif output == "textfile":
                 ScanFilesOutput2textfile(directory)
-
     else:
         parser.print_help()
 
@@ -163,6 +178,24 @@ def GetScanReportMD5FileList(fname):
 
     f.close()
 
+# Report from URL listed in a textfile
+def GetScanReportURLFileList(fname):
+    try:
+        f = open(fname)
+    except Exception, e:
+        print "[-]    " + str(e) + "\n"
+        return
+
+    for line in f:
+        if not line.strip():
+            continue
+        else:
+            result = GetDetectionRateURL(line)
+            if result:
+                print line.strip(),",", result
+
+    f.close()
+
 # Get rate from single md5
 def GetDetectionRateMD5(md5):
     try:
@@ -180,6 +213,88 @@ def GetDetectionRateMD5(md5):
             return str(jsondict['positives'])+"/"+str(jsondict['total'])
     except Exception, e:
         if "204" in str(e):
+            print "[-]    Exceed the public API request rate limit.\n"
+            return
+        else:
+            print "[-]    " + str(e) + "\n"
+            return
+
+# Get rate from single URL
+def GetDetectionRateURL(urlin):
+    try:
+        url = "http://www.virustotal.com/vtapi/v2/url/report"
+        parameters = {"resource": urlin,"apikey": apikey}
+        data = urllib.urlencode(parameters)
+        req = urllib2.Request(url, data)
+        r = urllib2.urlopen(req)
+        jsondata = r.read()
+        jsondict = json.loads(jsondata)
+
+        if jsondict['response_code'] == 0:
+            print "[-]    ",jsondict['verbose_msg']
+        else:
+            if jsondict['filescan_id']:
+                return str(jsondict['positives'])+"/"+str(jsondict['total'])+", "+"Malware file found on site with detection rate, "+GetDetectionRateSHA256(jsondict['filescan_id'].split("-")[0])
+            else:
+                return str(jsondict['positives'])+"/"+str(jsondict['total'])
+    except Exception, e:
+        if "204" in str(e):
+            print "[-]    Exceed the public API request rate limit.\n"
+            return
+        else:
+            print "[-]    " + str(e) + "\n"
+            return
+
+# Get rate from single sha256
+def GetDetectionRateSHA256(sha256):
+    try:
+        url = "https://www.virustotal.com/vtapi/v2/file/report"
+        parameters = {"resource": sha256,"apikey": apikey}
+        data = urllib.urlencode(parameters)
+        req = urllib2.Request(url, data)
+        r = urllib2.urlopen(req)
+        jsondata = r.read()
+        jsondict = json.loads(jsondata)
+
+        if jsondict['response_code'] == 0:
+            return "[-]    ",jsondict['verbose_msg']
+        else:
+            return str(jsondict['positives'])+"/"+str(jsondict['total'])
+    except Exception, e:
+        if "204" in str(e):
+            return "[-]    Exceed the public API request rate limit.\n"
+        else:
+            return "[-]    " + str(e) + "\n"
+
+# URL Report from a single md5 sum from VirusTotal
+def GetScanReportURL(urlin):
+    try:
+        url = "http://www.virustotal.com/vtapi/v2/url/report"
+        parameters = {"resource": urlin,"apikey": apikey}
+        data = urllib.urlencode(parameters)
+        req = urllib2.Request(url, data)
+        r = urllib2.urlopen(req)
+        jsondata = r.read()
+        jsondict = json.loads(jsondata)
+
+        if jsondict['response_code'] == 0:
+            print "[-]    ",jsondict['verbose_msg']
+        else:
+            print "-----------------------INFO------------------------------------"
+            print "url: " + jsondict['url']
+            print "Status: " + jsondict['verbose_msg']
+            if jsondict['filescan_id']:
+                print "File scan: ",GetDetectionRateSHA256(jsondict['filescan_id'].split("-")[0])
+            print "Scan date: " + jsondict['scan_date']
+            print "Detection rate: ",jsondict['positives'],"/",jsondict['total']
+            print "-----------------------SCANS-----------------------------------"
+            for i in jsondict['scans']:
+                print i,": ",jsondict['scans'][i]['result']
+    except Exception, e:
+        if "Forbidden" in str(e):
+            print   "[-]    Forbidden access. Check your API-key.\n"
+            return
+        elif "204" in str(e):
             print "[-]    Exceed the public API request rate limit.\n"
             return
         else:
@@ -236,6 +351,30 @@ def ScanFile(fname):
         print "-----------------------INFO------------------------------------"
         print "File: " + os.path.abspath(fname)
         print "md5: " + jsondict['md5']
+        print "Link: " + jsondict['permalink']
+        print "Status: " + jsondict['verbose_msg']
+    except Exception, e:
+        if "204" in str(e):
+            print "[-]    Exceed the public API request rate limit.\n"
+            return
+        else:
+            print "[-]    " + str(e) + "\n"
+            return
+
+# Send a URL to VirusTotal for scanning
+def ScanURL(urlin):
+    try:
+        url = "https://www.virustotal.com/vtapi/v2/url/scan"
+        parameters = {"url": urlin,"apikey": apikey}
+        data = urllib.urlencode(parameters)
+        req = urllib2.Request(url, data)
+        r = urllib2.urlopen(req)
+        jsondata = r.read()
+        jsondict = json.loads(jsondata)
+
+        print "-----------------------INFO------------------------------------"
+        print "URL: " + jsondict['url']
+        print "Scan Date: " + jsondict['scan_date']
         print "Link: " + jsondict['permalink']
         print "Status: " + jsondict['verbose_msg']
     except Exception, e:
